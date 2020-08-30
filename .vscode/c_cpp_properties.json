@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\Thomas\\AppData\\Local\\Arduino15\\packages\\adafruit\\tools\\**",
+                "C:\\Users\\Thomas\\AppData\\Local\\Arduino15\\packages\\adafruit\\hardware\\samd\\1.6.0\\**",
+                "C:\\Users\\Thomas\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\CMSIS-Atmel\\1.2.0\\CMSIS\\Device\\ATMEL\\samd51\\**",
+                "C:\\Users\\Thomas\\AppData\\Local\\Arduino15\\packages\\adafruit\\hardware\\samd\\1.6.0\\cores\\arduino\\**"
+            ],
+            "forcedInclude": [
+                "C:\\Users\\Thomas\\AppData\\Local\\Arduino15\\packages\\adafruit\\hardware\\samd\\1.6.0\\cores\\arduino\\Arduino.h"
+            ],
+            "intelliSenseMode": "msvc-x64",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Tools/MSVC/14.12.25827/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

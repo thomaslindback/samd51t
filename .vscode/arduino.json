@@ -1,0 +1,7 @@
+{
+    "board": "adafruit:samd:adafruit_itsybitsy_m4",
+    "configuration": "cache=on,speed=120,opt=small,maxqspi=50,usbstack=arduino,debug=off",
+    "sketch": "samd51t.ino",
+    "port": "COM8",
+    "output": "C:\\temp\\samd51_blink\\"
+}
