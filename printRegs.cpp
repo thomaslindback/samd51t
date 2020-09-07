@@ -21,6 +21,8 @@ void printRegs(RegOptions &opts) {
     printRegsMCLK(opts);
     printRegsGCLK(opts);
     printRegsTC(opts);
+    printRegsPORT(opts);
+    printRegsEVSYS(opts);
 }
 
 static const char *const GCLK_PCHCTRL_NAMES[] = {
@@ -234,6 +236,7 @@ void printRegsMCLK(RegOptions &opts) {
     Serial.print(MCLK->APBDMASK.bit.DAC_ ? "DAC_ " : "");
     Serial.print(MCLK->APBDMASK.bit.I2S_ ? "I2S_ " : "");
     Serial.print(MCLK->APBDMASK.bit.PCC_ ? "PCC_ " : "");
+    Serial.println("");
 }
 
 void printRegsTC(RegOptions &opts) {
@@ -330,6 +333,7 @@ void printRegsTC(RegOptions &opts) {
                 break;
         }
         Serial.print("    EVCTRL: ");
+        printReg<16>(tc->COUNT8.EVCTRL.reg);
         Serial.println("");
         Serial.print("    STATUS: ");
         printReg<8>(tc->COUNT8.STATUS.reg);
@@ -345,5 +349,69 @@ void printRegsTC(RegOptions &opts) {
 
         i++;
         Serial.println(" ");
+    }
+}
+
+void printRegsPORT(RegOptions &opts) {
+
+    Serial.println("--------------------------- PORT");
+    int i = 0;
+    for(int i = 0; i < 4; i++) {
+        Serial.print("PORT");
+        PRINTAI(i);
+        Serial.println(": ");
+
+        PortGroup *pg = &PORT->Group[i]; 
+        if(pg->DIR.reg) {
+            Serial.print("    DIR: ");
+            printReg<32>(pg->DIR.reg);
+            Serial.println("");
+        }
+        if(pg->EVCTRL.reg) {
+            Serial.print("    EVCTRL: ");
+            printReg<32>(pg->EVCTRL.reg);
+            Serial.println("");
+        }
+        for(int j = 0; j < 16; j++) {
+            if(pg->PMUX[j].reg) {
+                Serial.print("        PMUX");
+                PRINTAI(j);
+                Serial.print(": ");  
+                printReg<8>(pg->PMUX[j].reg);
+                Serial.println("");
+            }
+        }
+        for(int j = 0; j < 32; j++) {
+            if(pg->PINCFG[j].reg) {
+                Serial.print("        PINCFG");
+                PRINTAI(j);
+                Serial.print(": ");  
+                printReg<8>(pg->PINCFG[j].reg);
+                Serial.println("");
+            }
+        }
+    }
+
+}
+
+void printRegsEVSYS(RegOptions &opts) {
+    Serial.println("--------------------------- EVSYS");
+    for(uint8_t i = 0; i < 32; i++) { 
+        if(EVSYS->Channel[i].CHANNEL.reg) {
+            Serial.print("CHANNEL");
+            PRINTAI(i);
+            Serial.println(": ");   
+            printReg<32>(EVSYS->Channel[i].CHANNEL.reg);
+            Serial.println("");
+        }
+    }
+    for(uint8_t i = 0; i <67; i++) {
+        if(EVSYS->USER[i].reg) {
+            Serial.print("USER");
+            PRINTAI(i);
+            Serial.print(".CHANNEL: ");   
+            printReg<32>(EVSYS->USER[i].reg);
+            Serial.println("");
+        }
     }
 }

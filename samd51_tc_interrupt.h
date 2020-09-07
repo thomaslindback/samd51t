@@ -4,7 +4,8 @@
 
 #include "samd51_tc.h"
 
-extern void *_tc_instances[TC_INST_NUM];
+extern std::array<tc_module*, TC_INST_NUM> _tc_instances; 
+//extern void *_tc_instances[TC_INST_NUM];
 
 bool tc_register_callback(
 		struct tc_module *const module,

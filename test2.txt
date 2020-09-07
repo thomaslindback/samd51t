@@ -1,0 +1,93 @@
+#include "sam.h"
+
+void setupTimer0(void)
+{
+    MCLK->APBCMASK.bit.TC0_ = 1;
+    GCLK->PCHCTRL[TC0_GCLK_ID].bit.GEN = 0;
+    GCLK->PCHCTRL[TC0_GCLK_ID].bit.CHEN = 1;
+    while(GCLK->PCHCTRL[TC0_GCLK_ID].bit.CHEN != 1);
+    
+    TC0->COUNT8.CTRLA.bit.ENABLE = 0;
+    while (TC0->COUNT8.SYNCBUSY.reg);
+    TC0->COUNT8.CTRLA.bit.MODE = TC_CTRLA_MODE_COUNT8_Val;
+    TC0->COUNT8.CTRLA.bit.PRESCALER |= TC_CTRLA_PRESCALER_DIV1_Val;
+    while (TC0->COUNT8.SYNCBUSY.reg);
+    TC0->COUNT8.INTENSET.bit.OVF = 1;
+    // Enable InterruptVector
+    NVIC_EnableIRQ(TC0_IRQn);
+    // Event on overflow
+    TC0->COUNT8.EVCTRL.bit.OVFEO = 1;
+    // Enable TC
+    TC0->COUNT8.CTRLA.bit.ENABLE = 1;
+}
+
+void setupTimer1(void)
+{
+    MCLK->APBCMASK.bit.TC1_ = 1;
+    GCLK->PCHCTRL[TC1_GCLK_ID].bit.GEN = 0;
+    GCLK->PCHCTRL[TC1_GCLK_ID].bit.CHEN = 1;
+    while(GCLK->PCHCTRL[TC1_GCLK_ID].bit.CHEN != 1);
+    
+    TC1->COUNT16.CTRLA.bit.ENABLE = 0;
+    while (TC1->COUNT16.SYNCBUSY.reg);
+    TC1->COUNT16.CTRLA.bit.MODE = TC_CTRLA_MODE_COUNT16_Val;
+    TC1->COUNT16.CTRLA.bit.PRESCALER = TC_CTRLA_PRESCALER_DIV1_Val;
+    while (TC1->COUNT16.SYNCBUSY.reg);
+    TC1->COUNT16.INTENSET.bit.OVF = 1;
+    // Enable InterruptVector
+    NVIC_EnableIRQ(TC1_IRQn);
+    // Count on event
+    TC1->COUNT16.EVCTRL.bit.EVACT = TC_EVCTRL_EVACT_COUNT_Val;
+    // This works but should be after EVSYS setup according to the data sheet
+    //TC1->COUNT16.EVCTRL.bit.TCEI = 1;
+    //TC1->COUNT16.CTRLA.bit.ENABLE = 1;
+}
+
+void TC0_Handler()
+{
+    if (TC0->COUNT8.INTFLAG.bit.OVF) {
+        REG_TC0_INTFLAG = TC_INTFLAG_OVF;
+    }
+}
+
+void TC1_Handler()
+{
+    if (TC1->COUNT16.INTFLAG.bit.OVF) {
+        REG_TC1_INTFLAG = TC_INTFLAG_OVF;
+    }
+}
+
+volatile uint16_t count0 = 0;
+volatile uint16_t count1 = 0;
+
+int main(void)
+{
+    /* Initialize the SAM system */
+    SystemInit();
+    MCLK->APBCMASK.bit.EVSYS_ = 1;
+    setupTimer0();
+    setupTimer1();
+    // The channel can do without GCLK when async
+    //GCLK->PCHCTRL[EVSYS_GCLK_ID_0].bit.GEN = 0;
+    //GCLK->PCHCTRL[EVSYS_GCLK_ID_0].bit.CHEN = 1;
+    //while(GCLK->PCHCTRL[EVSYS_GCLK_ID_0].bit.CHEN != 1);
+    
+    EVSYS->USER[EVSYS_ID_USER_TC1_EVU].reg = 1;
+    const EVSYS_CHANNEL_Type channel0Config = {
+        .bit.EDGSEL = 0, // 0 when using async
+        .bit.EVGEN = EVSYS_ID_GEN_TC0_OVF,
+        .bit.PATH = EVSYS_CHANNEL_PATH_ASYNCHRONOUS_Val
+    };
+    EVSYS->CHANNEL[0].reg = channel0Config.reg;
+    //while(EVSYS->CHSTATUS.bit.CHBUSY0);
+    // Enable event input
+    TC1->COUNT16.EVCTRL.bit.TCEI = 1;
+    TC1->COUNT16.CTRLA.bit.ENABLE = 1;
+        
+    while (1) {
+        TC0->COUNT8.CTRLBSET.bit.CMD = TC_CTRLBSET_CMD_READSYNC_Val;
+        count0 = TC0->COUNT8.COUNT.reg;
+        TC1->COUNT16.CTRLBSET.bit.CMD = TC_CTRLBSET_CMD_READSYNC_Val;
+        count1 = TC1->COUNT16.COUNT.reg;
+    }
+}

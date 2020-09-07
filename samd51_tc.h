@@ -2,15 +2,16 @@
 #define _SAMD_51_TC_H_
 
 #include <Arduino.h>
-
+#include <array>
 #include "samd51_gclk.h"
+#include "utils.h"
 
 #define NUMBER_OF_COMPARE_CAPTURE_CHANNELS TC0_CC_NUM
 
 struct tc_module;
 
 /** Type of the callback functions. */
-typedef void (*tc_callback_t)(struct tc_module *const module);
+using tc_callback_t = void (*)(tc_module* const module);
 
 enum tc_compare_capture_channel {
     /** Index of compare capture channel 0 */
@@ -266,6 +267,51 @@ struct tc_module {
     bool double_buffering_enabled;
 };
 
+/**
+ * \brief Action to perform when the TC module is triggered by an event.
+ *
+ * Event action to perform when the module is triggered by an event.
+ */
+enum tc_event_action {
+	/** No event action */
+	TC_EVENT_ACTION_OFF                 = TC_EVCTRL_EVACT_OFF,
+	/** Re-trigger on event */
+	TC_EVENT_ACTION_RETRIGGER           = TC_EVCTRL_EVACT_RETRIGGER,
+	/** Increment counter on event */
+	TC_EVENT_ACTION_INCREMENT_COUNTER   = TC_EVCTRL_EVACT_COUNT,
+	/** Start counter on event */
+	TC_EVENT_ACTION_START               = TC_EVCTRL_EVACT_START,
+
+	/** Store period in capture register 0, pulse width in capture
+	 *  register 1
+	 */
+	TC_EVENT_ACTION_PPW                 = TC_EVCTRL_EVACT_PPW,
+
+	/** Store pulse width in capture register 0, period in capture
+	 *  register 1
+	 */
+	TC_EVENT_ACTION_PWP                 = TC_EVCTRL_EVACT_PWP,
+	/** Time stamp capture */
+	TC_EVENT_ACTION_STAMP               = TC_EVCTRL_EVACT_STAMP,
+	/** Pulse width capture */
+	TC_EVENT_ACTION_PW                  = TC_EVCTRL_EVACT_PW,
+};
+
+struct tc_events {
+	/** Generate an output event on a compare channel match */
+	bool generate_event_on_compare_channel[NUMBER_OF_COMPARE_CAPTURE_CHANNELS] = {false, false};
+	/** Generate an output event on counter overflow */
+	bool generate_event_on_overflow = false;
+	/** Perform the configured event action when an incoming event is signalled */
+	bool on_event_perform_action = false;
+	/** Specifies if the input event source is inverted, when used in PWP or
+	 *  PPW event action modes
+	 */
+	bool invert_event_input = false;
+	/** Specifies which event to trigger if an event is triggered */
+	enum tc_event_action event_action = TC_EVENT_ACTION_OFF;
+};
+
 uint8_t _tc_get_inst_index(Tc *const hw);
 
 /**
@@ -359,6 +405,32 @@ static inline void tc_enable(
     tc_module->CTRLA.reg |= TC_CTRLA_ENABLE;
 }
 
+/**
+ * \brief Disables the TC module.
+ *
+ * Disables a TC module and stops the counter.
+ *
+ * \param[in]  module_inst   Pointer to the software module instance struct
+ */
+static inline void tc_disable(
+		const tc_module *const module_inst)
+{
+	/* Get a pointer to the module's hardware instance */
+	TcCount8 *const tc_module = &(module_inst->hw->COUNT8);
+
+	while (tc_is_syncing(module_inst)) {
+		/* Wait for sync */
+	}
+
+	/* Disbale interrupt */
+	tc_module->INTENCLR.reg = TC_INTENCLR_MASK;
+	/* Clear interrupt flag */
+	tc_module->INTFLAG.reg = TC_INTFLAG_MASK;
+
+	/* Disable TC module */
+	tc_module->CTRLA.reg  &= ~TC_CTRLA_ENABLE;
+}
+
 uint32_t tc_get_capture_value(
     const struct tc_module *const module_inst,
     const enum tc_compare_capture_channel channel_index);
@@ -370,7 +442,100 @@ bool tc_set_compare_value(
 
 uint32_t tc_get_count_value(
 		const struct tc_module *const module_inst);
-        
+
+/**
+ * \brief Enables a TC module event input or output.
+ *
+ * Enables one or more input or output events to or from the TC module.
+ * See \ref tc_events for a list of events this module supports.
+ *
+ * \note Events cannot be altered while the module is enabled.
+ *
+ * \param[in]  module_inst  Pointer to the software module instance struct
+ * \param[in]  events       Struct containing flags of events to enable
+ */
+static inline void tc_enable_events(
+		struct tc_module *const module_inst,
+		struct tc_events *const events)
+{
+
+	Tc *const tc_module = module_inst->hw;
+
+	uint16_t event_mask = 0;
+
+	if (events->invert_event_input == true) {
+        Serial.println("events->invert_event_input == true");
+		event_mask |= TC_EVCTRL_TCINV;
+	}
+
+	if (events->on_event_perform_action == true) {
+        Serial.println("vents->on_event_perform_action == true");
+		event_mask |= TC_EVCTRL_TCEI;
+	}
+
+	if (events->generate_event_on_overflow == true) {
+        Serial.println("events->generate_event_on_overflow == true");
+		event_mask |= TC_EVCTRL_OVFEO;
+	}
+
+	for (uint8_t i = 0; i < NUMBER_OF_COMPARE_CAPTURE_CHANNELS; i++) {
+		if (events->generate_event_on_compare_channel[i] == true) {
+            Serial.println("events->generate_event_on_compare_channel[i] == true");
+			event_mask |= (TC_EVCTRL_MCEO(1) << i);
+		}
+	}
+    Serial.print("event_mask: ");
+    printReg<16>(event_mask, "\n");
+    Serial.print("event_mask | events->event_action: ");
+    printReg<16>(event_mask | events->event_action, "\n");
+
+	tc_module->COUNT8.EVCTRL.reg |= (event_mask | events->event_action);
+
+    Serial.print("tc_module->COUNT8.EVCTRL.reg: ");
+    printReg<16>(tc_module->COUNT8.EVCTRL.reg, "\n");
+
+}
+
+/**
+ * \brief Disables a TC module event input or output.
+ *
+ * Disables one or more input or output events to or from the TC module.
+ * See \ref tc_events for a list of events this module supports.
+ *
+ * \note Events cannot be altered while the module is enabled.
+ *
+ * \param[in]  module_inst  Pointer to the software module instance struct
+ * \param[in]  events       Struct containing flags of events to disable
+ */
+static inline void tc_disable_events(
+		struct tc_module *const module_inst,
+		struct tc_events *const events)
+{
+	Tc *const tc_module = module_inst->hw;
+
+	uint32_t event_mask = 0;
+
+	if (events->invert_event_input == true) {
+		event_mask |= TC_EVCTRL_TCINV;
+	}
+
+	if (events->on_event_perform_action == true) {
+		event_mask |= TC_EVCTRL_TCEI;
+	}
+
+	if (events->generate_event_on_overflow == true) {
+		event_mask |= TC_EVCTRL_OVFEO;
+	}
+
+	for (uint8_t i = 0; i < NUMBER_OF_COMPARE_CAPTURE_CHANNELS; i++) {
+		if (events->generate_event_on_compare_channel[i] == true) {
+			event_mask |= (TC_EVCTRL_MCEO(1) << i);
+		}
+	}
+
+	tc_module->COUNT8.EVCTRL.reg &= ~event_mask;
+}
+
 struct samd51_tc {
     samd51_tc(Tc *const hw, tc_counter_size counter_size) : _hw(hw), _counter_size(counter_size) {
     }

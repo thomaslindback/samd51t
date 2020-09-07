@@ -5,10 +5,12 @@
 #include "samd51_tc_interrupt.h"
 #include "wiring_private.h"
 
+static std::array<Tc*, TC_INST_NUM> tc_modules{TC_INSTS};
+
 uint8_t _tc_get_inst_index(Tc *const hw)
 {
 	/* List of available TC modules. */
-	Tc *const tc_modules[TC_INST_NUM] = TC_INSTS;
+	//Tc *const tc_modules[TC_INST_NUM] = TC_INSTS;
 
 	/* Find index for TC instance. */
 	for (uint32_t i = 0; i < TC_INST_NUM; i++) {
@@ -264,9 +266,9 @@ uint32_t tc_get_count_value(
 	/* Get a pointer to the module's hardware instance */
 	Tc *const tc_module = module_inst->hw;
 
-	while (tc_is_syncing(module_inst)) {
-		/* Wait for sync */
-	}
+    tc_module->COUNT8.CTRLBSET.reg = TC_CTRLBSET_CMD_READSYNC;
+    while (tc_module->COUNT8.CTRLBSET.reg & TC_CTRLBSET_CMD_READSYNC)
+        ;
 
 	/* Read from based on the TC counter size */
 	switch (module_inst->counter_size) {

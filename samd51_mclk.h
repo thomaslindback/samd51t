@@ -4,10 +4,10 @@
 #include <Arduino.h>
 
 enum mclk_apb_bus {
-	MCLK_APBAMASK,
-	MCLK_APBBMASK,
-	MCLK_APBCMASK,
-	MCLK_APBDMASK
+	MCLK_APBAMASK, // A
+	MCLK_APBBMASK, // B
+	MCLK_APBCMASK, // C
+	MCLK_APBDMASK  // D
 };
 
 

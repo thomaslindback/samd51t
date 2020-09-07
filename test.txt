@@ -1,0 +1,86 @@
+// Adafruit Feather M4: Count input pulses with 32-bit timer TC0 on pin A4 and 30MHz test output with timer TCC0 on D10
+void setup()
+{
+  // Serial USB Port Output ///////////////////////////////////////////////////////////////////////////////
+ 
+  Serial.begin(115200);           // Open the native USB port at 115200 baud
+  while(!Serial);                 // Wait for the console to be opened
+ 
+  // TCC0 Timer 30MHz Test Output /////////////////////////////////////////////////////////////////////////
+
+  GCLK->PCHCTRL[TCC0_GCLK_ID].reg = GCLK_PCHCTRL_CHEN |        // Enable the TCC1 perhipheral channel
+                                    GCLK_PCHCTRL_GEN_GCLK0;    // Connect 120MHz generic clock 0 to TCC0
+ 
+  // Enable the peripheral multiplexer on pin D10
+  PORT->Group[g_APinDescription[10].ulPort].PINCFG[g_APinDescription[10].ulPin].bit.PMUXEN = 1;
+ 
+  // Set the D10 (PORT_PA20) peripheral multiplexer to peripheral (even port number) G(6): TCC0, Channel 0
+  PORT->Group[g_APinDescription[10].ulPort].PMUX[g_APinDescription[10].ulPin >> 1].reg |= PORT_PMUX_PMUXE(6);             
+ 
+  TCC0->WAVE.reg = TCC_WAVE_WAVEGEN_NPWM;            // Set-up TCC0 timer for Normal (single slope) PWM mode (NPWM)
+  while (TCC0->SYNCBUSY.bit.WAVE);                   // Wait for synchronization
+
+  TCC0->PER.reg = 3;                                 // Set-up the PER (period) register for 30MHz output
+  while (TCC0->SYNCBUSY.bit.PER);                    // Wait for synchronization
+ 
+  TCC0->CC[0].reg = 2;                               // Set-up 50% duty-cycle
+  while (TCC0->SYNCBUSY.bit.CC0);                    // Wait for synchronization
+
+  TCC0->CTRLA.bit.ENABLE = 1;                        // Enable timer TCC0
+  while (TCC0->SYNCBUSY.bit.ENABLE);                 // Wait for synchronization
+ 
+  // EIC Interrupt System ///////////////////////////////////////////////////////////////////////////////
+
+  // Enable the port multiplexer on analog pin A4
+  PORT->Group[g_APinDescription[A4].ulPort].PINCFG[g_APinDescription[A4].ulPin].bit.PMUXEN = 1;
+ 
+  // Set-up the pin as an EIC (interrupt) peripheral on analog pin A4
+  PORT->Group[g_APinDescription[A4].ulPort].PMUX[g_APinDescription[A4].ulPin >> 1].reg |= PORT_PMUX_PMUXE(0);
+ 
+  EIC->CTRLA.bit.ENABLE = 0;                        // Disable the EIC peripheral
+  while (EIC->SYNCBUSY.bit.ENABLE);                 // Wait for synchronization
+  EIC->CONFIG[0].reg = EIC_CONFIG_SENSE4_HIGH;      // Set event on detecting a HIGH level
+  EIC->EVCTRL.reg = 1 << 4;                         // Enable event output on external interrupt 4
+  EIC->INTENCLR.reg = 1 << 4;                       // Clear interrupt on external interrupt 4
+  EIC->ASYNCH.reg = 1 << 4;                         // Set-up interrupt as asynchronous input
+  EIC->CTRLA.bit.ENABLE = 1;                        // Enable the EIC peripheral
+  while (EIC->SYNCBUSY.bit.ENABLE);                 // Wait for synchronization
+
+  // TC0 Count Timer //////////////////////////////////////////////////////////////////////////////////
+
+  GCLK->PCHCTRL[TC0_GCLK_ID].reg = GCLK_PCHCTRL_CHEN |         // Enable perhipheral channel for TC0
+                                   GCLK_PCHCTRL_GEN_GCLK0;     // Connect generic clock 0 at 120MHz
+
+  TC0->COUNT32.CTRLA.reg = TC_CTRLA_MODE_COUNT32;              // Set-up TC0/TC1 timers in 32-bit mode
+ 
+  // Event System ///////////////////////////////////////////////////////////////////////////////
+
+  MCLK->APBBMASK.reg |= MCLK_APBBMASK_EVSYS;         // Switch on the event system peripheral
+ 
+  // Select the event system user on channel 0 (USER number = channel number + 1)
+  EVSYS->USER[EVSYS_ID_USER_TC0_EVU].reg = EVSYS_USER_CHANNEL(1);         // Set the event user (receiver) as timer TC0
+
+  // Select the event system generator on channel 0
+  EVSYS->Channel[0].CHANNEL.reg = EVSYS_CHANNEL_EDGSEL_NO_EVT_OUTPUT |              // No event edge detection
+                                  EVSYS_CHANNEL_PATH_ASYNCHRONOUS |                 // Set event path as asynchronous
+                                  EVSYS_CHANNEL_EVGEN(EVSYS_ID_GEN_EIC_EXTINT_4);   // Set event generator (sender) as external interrupt 4     
+
+  TC0->COUNT32.EVCTRL.reg = TC_EVCTRL_TCEI |              // Enable the TC event input                       
+                            TC_EVCTRL_EVACT_COUNT;        // Set up the timer to count on event
+ 
+  // Enable Timer  ///////////////////////////////////////////////////////////////////////////////
+ 
+  TC0->COUNT32.CTRLA.bit.ENABLE = 1;                 // Enable timer TC0
+  while (TC0->COUNT32.SYNCBUSY.bit.ENABLE);          // Wait for synchronization
+}
+
+void loop()
+{
+  TC0->COUNT32.CTRLBSET.reg = TC_CTRLBCLR_CMD_READSYNC;     // Initiate read synchronization of COUNT register
+  while (TC0->COUNT32.SYNCBUSY.bit.CTRLB);                  // Wait for CTRLBSET register write synchronization
+  while (TC0->COUNT32.SYNCBUSY.bit.COUNT);                  // Wait for COUNT register read synchronization
+  Serial.println(TC0->COUNT32.COUNT.reg);                   // Read and display the TC0 COUNT register
+  TC0->COUNT32.CTRLBSET.reg = TC_CTRLBCLR_CMD_RETRIGGER;    // Initiate timer reset
+  while (TC0->COUNT32.SYNCBUSY.bit.CTRLB);                  // Wait for CTRLBSET register write synchronization
+  delay(1000);                                              // Wait a second
+}

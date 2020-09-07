@@ -1,0 +1,47 @@
+// Adafruit Metro M4 Only: Set-up digital pin D10 to output 50Hz, single slope PWM with a 50% duty cycle
+// Timer stop and started at 1 second intervals
+void setup()
+{
+  // Set up the generic clock (GCLK7) to clock timer TCC1
+  GCLK->GENCTRL[7].reg = GCLK_GENCTRL_DIV(1) |       // Divide the 48MHz clock source by divisor 1: 48MHz/1 = 48MHz
+                         GCLK_GENCTRL_IDC |          // Set the duty cycle to 50/50 HIGH/LOW
+                         GCLK_GENCTRL_GENEN |        // Enable GCLK7
+                         GCLK_GENCTRL_SRC_DFLL;      // Select 48MHz DFLL clock source
+                         //GCLK_GENCTRL_SRC_DPLL0;     // Select 100MHz DPLL clock source
+                         //GCLK_GENCTRL_SRC_DPLL0;     // Select 120MHz DPLL clock source
+  while (GCLK->SYNCBUSY.bit.GENCTRL7);               // Wait for synchronization 
+
+  GCLK->PCHCTRL[TCC1_GCLK_ID].reg = GCLK_PCHCTRL_CHEN |        // Enable the TCC1 perhipheral channel
+                                    GCLK_PCHCTRL_GEN_GCLK7;    // Connect generic clock 7 to TCC1
+
+  // Enable the peripheral multiplexer on pin D10
+  PORT->Group[g_APinDescription[10].ulPort].PINCFG[g_APinDescription[10].ulPin].bit.PMUXEN = 1;
+ 
+  // Set the D10 (PORT_PA18) peripheral multiplexer to peripheral (even port number) F(5): TCC1, Channel 0
+  PORT->Group[g_APinDescription[10].ulPort].PMUX[g_APinDescription[10].ulPin >> 1].reg |= PORT_PMUX_PMUXE(5);
+ 
+  TCC1->CTRLA.reg = TC_CTRLA_PRESCALER_DIV8 |        // Set prescaler to 8, 48MHz/8 = 6MHz
+                    TC_CTRLA_PRESCSYNC_PRESC;        // Set the reset/reload to trigger on prescaler clock                 
+
+  TCC1->WAVE.reg = TC_WAVE_WAVEGEN_NPWM;             // Set-up TCC1 timer for Normal (single slope) PWM mode (NPWM)
+  while (TCC1->SYNCBUSY.bit.WAVE)                    // Wait for synchronization
+
+  TCC1->PER.reg = 119999;                            // Set-up the PER (period) register 50Hz PWM
+  while (TCC1->SYNCBUSY.bit.PER);                    // Wait for synchronization
+ 
+  TCC1->CC[2].reg = 59999;                           // Set-up the CC (counter compare), channel 2 register for 50% duty-cycle
+  while (TCC1->SYNCBUSY.bit.CC0);                    // Wait for synchronization
+
+  TCC1->CTRLA.bit.ENABLE = 1;                        // Enable timer TCC1
+  while (TCC1->SYNCBUSY.bit.ENABLE);                 // Wait for synchronization
+}
+
+void loop()
+{         
+  TCC1->CTRLBSET.reg = TCC_CTRLBSET_CMD_STOP;        // Stop TCC1
+  while (TCC1->SYNCBUSY.bit.CTRLB);                  // Wait for synchronization
+  delay(1000);                                       // Wait for 1 second
+  TCC1->CTRLBSET.reg = TCC_CTRLBSET_CMD_RETRIGGER;   // Retrigger (start) TCC1
+  while (TCC1->SYNCBUSY.bit.CTRLB);                  // Wait for synchronization
+  delay(1000);                                       // Wait for 1 second
+}

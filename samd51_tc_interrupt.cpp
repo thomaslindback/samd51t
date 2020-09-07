@@ -34,11 +34,11 @@
 /*
  * Support and FAQ: visit <a href="https://www.microchip.com/support/">Microchip Support</a>
  */
-
 #include "samd51_tc_interrupt.h"
-#include "utils.h""
+#include "utils.h"
 
-void *_tc_instances[TC_INST_NUM];
+std::array<tc_module*, TC_INST_NUM> _tc_instances; 
+//void *_tc_instances[TC_INST_NUM];
 
 void _tc_interrupt_handler(uint8_t instance);
 
@@ -135,7 +135,7 @@ void _tc_interrupt_handler(
     uint8_t interrupt_and_callback_status_mask;
 
     /* Get device instance from the look-up table */
-    struct tc_module *module = (struct tc_module *)_tc_instances[instance];
+    tc_module *module = _tc_instances[instance];
 
     /* Read and mask interrupt flag register */
     interrupt_and_callback_status_mask = module->hw->COUNT8.INTFLAG.reg &

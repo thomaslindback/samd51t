@@ -12,5 +12,7 @@ void printRegs(RegOptions &opts);
 void printRegsGCLK(RegOptions &opts);
 void printRegsMCLK(RegOptions &opts);
 void printRegsTC(RegOptions &opts);
+void printRegsPORT(RegOptions &opts);
+void printRegsEVSYS(RegOptions &opts);
 
 #endif 
